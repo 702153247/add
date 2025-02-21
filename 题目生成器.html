@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <title>做题做题</title>
+    <style>
+      /* 添加视口设置（在head的style最前面添加） */
+      @viewport {
+        width: device-width;
+        zoom: 1;
+      }
+      :root {
+        --primary-color: #2196f3;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+      }
+      .controls {
+        background: #f5f5f5;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .control-group {
+        margin: 15px 0;
+      }
+      label {
+        display: inline-block;
+        width: 150px;
+        font-weight: bold;
+      }
+      input,
+      select {
+        padding: 8px;
+        width: 200px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      button {
+        background: var(--primary-color);
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      button:hover {
+        background: #1976d2;
+      }
+      #output {
+        margin-top: 20px;
+        column-count: 2;
+        column-gap: 30px;
+      }
+      .question {
+        padding: 8px 0;
+        page-break-inside: avoid;
+      }
+      .print-only {
+        display: none;
+      }
+      @media print {
+        .print-only {
+          display: block;
+        }
+        .no-print {
+          display: none;
+        }
+      }
+      #tempContainer {
+        position: absolute;
+        left: -9999px;
+      }
+      @media print {
+        .controls {
+          display: none;
+        }
+        #output {
+          column-count: 3;
+        }
+      }
+      /* 在原有样式基础上添加以下内容 */
+      @media screen and (max-width: 768px) {
+        body {
+          padding: 10px;
+          margin: 10px;
+          font-size: 14px;
+        }
+
+        .controls {
+          padding: 10px;
+        }
+
+        .control-group {
+          margin: 10px 0;
+        }
+
+        label {
+          display: block;
+          width: 100%;
+          margin-bottom: 5px;
+        }
+
+        input,
+        select {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        button {
+          width: 100%;
+          margin: 5px 0 !important;
+          padding: 12px 0;
+        }
+
+        #output {
+          column-count: 1;
+          font-size: 16px;
+        }
+
+        /* 移动端隐藏图片保存按钮 */
+        /* button:nth-of-type(2) {
+          display: none;
+        } */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <div class="control-group">
+        <label>数值范围：</label>
+        <input type="number" id="maxNum" value="20" min="10" max="1000" />
+      </div>
+      <div class="control-group">
+        <label>运算类型：</label>
+        <select id="operation">
+          <option value="+">加法</option>
+          <option value="-">减法</option>
+          <option value="+-">加减混合</option>
+          <option value="×">乘法</option>
+          <option value="÷">除法</option>
+          <option value="++">连加</option>
+          <option value="--">连减</option>
+          <option value="++--">连加连减混合</option>
+          <option value="mix">四则混合</option>
+        </select>
+      </div>
+      <div class="control-group" id="numberCountGroup" style="display: none">
+        <label>数字个数：</label>
+        <select id="numberCount">
+          <option value="3">3个数字</option>
+          <option value="4">4个数字</option>
+          <option value="5">5个数字</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>题目数量：</label>
+        <input type="number" id="count" value="20" min="1" max="100" />
+      </div>
+      <button onclick="generate()">生成题目</button>
+      <button
+        onclick="saveAsImage()"
+        class="no-print"
+        style="margin-left: 10px"
+      >
+        保存为图片
+      </button>
+      <button onclick="window.print()" style="margin-left: 10px">打印</button>
+    </div>
+    <div id="output"></div>
+    <div id="tempContainer" style="position: absolute; left: -9999px"></div>
+
+    <script>
+      // 添加运算类型变化监听
+      document
+        .getElementById("operation")
+        .addEventListener("change", function () {
+          const showOptions = ["++", "--", "++--"];
+          const group = document.getElementById("numberCountGroup");
+          group.style.display = showOptions.includes(this.value)
+            ? "block"
+            : "none";
+        });
+
+      // generate函数,生成题目
+      function generate() {
+        const max = parseInt(document.getElementById("maxNum").value);
+        const op = document.getElementById("operation").value;
+        const count = parseInt(document.getElementById("count").value);
+        const numberCount = document.getElementById("numberCount").value || 3; // 默认3个
+
+        let output = document.getElementById("output");
+        output.innerHTML = "";
+
+        for (let i = 0; i < count; i++) {
+          let question = createQuestion(max, op, numberCount); // 传入numberCount
+          let div = document.createElement("div");
+          div.className = "question";
+          //   div.textContent = `${i + 1}. ${question} = `;
+          div.textContent = `${question} = `;
+          output.appendChild(div);
+        }
+      }
+
+      function createQuestion(max, op, numberCount) {
+        const opsMap = {
+          "+": () => twoNumAdd(max),
+          "-": () => twoNumSub(max),
+          "+-": () => (Math.random() > 0.5 ? twoNumAdd(max) : twoNumSub(max)),
+          "×": () => twoNumMul(max),
+          "÷": () => twoNumDiv(max),
+          "++": () => multiNumAdd(max, numberCount),
+          "--": () => multiNumSub(max, numberCount),
+          "++--": () => multiAddSubMix(max, numberCount),
+          mix: () => randomMix(max),
+        };
+        return opsMap[op]();
+      }
+
+      // 生成两数加法（确保和在max内）
+      function twoNumAdd(max) {
+        let a = randomInt(1, max - 1);
+        let b = randomInt(1, max - a);
+        return `${a} + ${b}`;
+      }
+
+      // 生成两数减法（结果非负）
+      function twoNumSub(max) {
+        let a = randomInt(1, max);
+        let b = randomInt(0, a);
+        return `${a} - ${b}`;
+      }
+
+      // 生成两数乘法
+      function twoNumMul(max) {
+        let limit = Math.min(Math.sqrt(max), 10);
+        let a = randomInt(1, limit);
+        let b = randomInt(1, Math.floor(max / a));
+        return `${a} × ${b}`;
+      }
+
+      // 生成整除的除法
+      function twoNumDiv(max) {
+        let b = randomInt(1, Math.sqrt(max) | 0);
+        let a = b * randomInt(1, Math.floor(max / b));
+        return `${a} ÷ ${b}`;
+      }
+
+      // 连加
+      function multiNumAdd(max, count) {
+        let nums = [];
+        let sum = 0;
+        for (let i = 0; i < count; i++) {
+          let maxVal = max - sum - (count - i - 1);
+          if (maxVal <= 0) break;
+          let num = randomInt(1, maxVal);
+          nums.push(num);
+          sum += num;
+        }
+        return nums.join(" + ");
+      }
+
+      // 连减函数
+      function multiNumSub(max, count) {
+        let a = randomInt(max * 0.6, max);
+        let nums = [a];
+        let current = a;
+
+        for (let i = 1; i < count; i++) {
+          let num = randomInt(0, current);
+          nums.push(num);
+          current -= num;
+        }
+
+        return nums.join(" - ");
+      }
+
+      // 连加连减混合生成函数
+      function multiAddSubMix(max, count) {
+        let nums = [];
+        let current = randomInt(1, max);
+        nums.push(current);
+
+        for (let i = 1; i < count; i++) {
+          let op = Math.random() > 0.5 ? "+" : "-";
+          let maxVal = op === "+" ? max - current : current;
+          let num = randomInt(1, Math.max(1, maxVal));
+
+          // 最后一个数字要保证整体结果在范围内
+          if (i === count - 1) {
+            num =
+              op === "+" ? randomInt(1, max - current) : randomInt(1, current);
+          }
+
+          nums.push(op + " " + num);
+          current = op === "+" ? current + num : current - num;
+        }
+
+        return nums.join(" ");
+      }
+
+      // 生成混合运算
+      function randomMix(max) {
+        const ops = ["+", "-", "×", "÷"];
+        let a = randomInt(1, max);
+        let expr = a;
+        let result = a;
+
+        for (let i = 0; i < 1; i++) {
+          // 控制运算符数量
+          let op = ops[randomInt(0, 3)];
+          let b;
+          switch (op) {
+            case "+":
+              b = randomInt(1, max - result);
+              result += b;
+              break;
+            case "-":
+              b = randomInt(0, result);
+              result -= b;
+              break;
+            case "×":
+              b = randomInt(1, Math.floor(max / result));
+              result *= b;
+              break;
+            case "÷":
+              b = randomInt(1, result);
+              if (result % b !== 0) b = 1;
+              result /= b;
+              break;
+          }
+          expr += ` ${op} ${b}`;
+        }
+        return expr;
+      }
+
+      async function saveAsImage() {
+        console.log(document.getElementById("output").children);
+
+        // 确保先生成题目
+        if (document.getElementById("output").children.length === 0) {
+          alert("请先生成题目！");
+          return;
+        }
+
+        // 环境检测
+        const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
+        const isAndroid = /android/i.test(navigator.userAgent);
+
+        try {
+          const originalOutput = document.getElementById("output");
+          const tempContainer = document.getElementById("tempContainer");
+
+          // 创建副本并调整样式
+          const clone = originalOutput.cloneNode(true);
+          clone.style.width = "800px";
+          clone.style.padding = "50px 50px";
+          clone.style.columns = "3";
+          clone.style.fontSize = "20px"; // 增加字体大小确保清晰度
+
+          // 安卓设备需要临时显示元素
+          if (isAndroid) {
+            clone.style.position = "fixed";
+            clone.style.left = "0";
+            clone.style.top = "0";
+            clone.style.zIndex = 9999;
+            document.body.appendChild(clone);
+          } else {
+            tempContainer.appendChild(clone);
+          }
+
+          // 生成画布
+          const canvas = await html2canvas(clone, {
+            scale: 2,
+            logging: true,
+            useCORS: true,
+            backgroundColor: "#ffffff", // 确保背景为白色
+          });
+
+          // 移除临时元素
+          if (isAndroid) {
+            document.body.removeChild(clone);
+          } else {
+            tempContainer.removeChild(clone);
+          }
+
+          // 通用下载处理
+          const downloadImage = (dataURL) => {
+            const link = document.createElement("a");
+            link.download = `数学题-${Date.now()}.png`;
+            link.href = dataURL;
+
+            // 安卓特殊处理
+            if (isAndroid) {
+              link.target = "_blank";
+              document.body.appendChild(link);
+              const event = new MouseEvent("click", {
+                view: window,
+                bubbles: true,
+                cancelable: true,
+              });
+              link.dispatchEvent(event);
+              setTimeout(() => document.body.removeChild(link), 500);
+            } else {
+              link.click();
+            }
+          };
+
+          // 微信浏览器处理
+          if (isWeChat) {
+            const img = new Image();
+            img.src = canvas.toDataURL("image/png");
+            img.style.position = "fixed";
+            img.style.top = "0";
+            img.style.width = "100%";
+            document.body.appendChild(img);
+            alert("请长按图片，选择『保存图片』");
+            setTimeout(() => document.body.removeChild(img), 5000);
+          }
+          // 安卓浏览器双保险方案
+          else if (isAndroid) {
+            // 尝试自动下载
+            canvas.toBlob((blob) => {
+              try {
+                const blobURL = URL.createObjectURL(blob);
+                downloadImage(blobURL);
+                setTimeout(() => URL.revokeObjectURL(blobURL), 5000);
+              } catch (e) {
+                // 自动下载失败时启用
+                const img = new Image();
+                img.src = URL.createObjectURL(blob);
+                img.style.position = "fixed";
+                img.style.top = "0";
+                img.style.width = "100%";
+                document.body.appendChild(img);
+                alert("请长按图片选择『保存图像』\n如未成功，请尝试截图");
+                setTimeout(() => {
+                  document.body.removeChild(img);
+                  URL.revokeObjectURL(img.src);
+                }, 5000);
+              }
+            }, "image/png");
+          }
+          // 桌面浏览器
+          else {
+            downloadImage(canvas.toDataURL("image/png"));
+          }
+        } catch (error) {
+          console.error("生成失败:", error);
+          alert(`保存失败: ${error.message}\n请尝试截图保存`);
+        } finally {
+          // 确保清理所有临时元素
+          const tempContainer = document.getElementById("tempContainer");
+          while (tempContainer.firstChild) {
+            tempContainer.removeChild(tempContainer.firstChild);
+          }
+        }
+      }
+
+      function randomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+    </script>
+  </body>
+</html>
